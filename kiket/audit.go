@@ -164,9 +164,20 @@ func (c *AuditClient) GetAnchor(merkleRoot string, includeRecords bool) (*Blockc
 	return &anchor, nil
 }
 
-// GetProof gets the blockchain proof for a specific audit record.
+// GetProof gets the blockchain proof for a specific audit record (defaults to AuditLog type).
 func (c *AuditClient) GetProof(recordID int64) (*BlockchainProof, error) {
-	resp, err := c.client.Get(fmt.Sprintf("/api/v1/audit/records/%d/proof", recordID))
+	return c.GetProofWithType(recordID, "AuditLog")
+}
+
+// GetProofWithType gets the blockchain proof for a specific audit record of the given type.
+// recordType should be "AuditLog" or "AIAuditLog".
+func (c *AuditClient) GetProofWithType(recordID int64, recordType string) (*BlockchainProof, error) {
+	path := fmt.Sprintf("/api/v1/audit/records/%d/proof", recordID)
+	if recordType != "AuditLog" {
+		path += "?record_type=" + recordType
+	}
+
+	resp, err := c.client.Get(path)
 	if err != nil {
 		return nil, err
 	}

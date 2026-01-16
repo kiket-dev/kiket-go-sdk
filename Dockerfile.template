@@ -1,0 +1,52 @@
+# syntax=docker/dockerfile:1
+# Kiket Extension Dockerfile Template - Go SDK
+# This template is used by Cloud Build to generate Dockerfiles for extensions
+# that declare `sdk: go` in their manifest.
+
+# Build stage
+FROM golang:1.23-alpine AS builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache git
+
+# Copy dependency files first for better caching
+COPY go.mod go.sum* ./
+
+# Download dependencies
+RUN go mod download
+
+# Copy application code
+COPY . .
+
+# Build static binary
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o extension .
+
+# Runtime stage
+FROM alpine:3.20
+
+WORKDIR /app
+
+# Install curl for health checks and ca-certificates for HTTPS
+RUN apk add --no-cache curl ca-certificates
+
+# Copy built binary from builder stage
+COPY --from=builder /app/extension .
+
+# Create non-root user for security
+RUN adduser -D -s /bin/sh kiket && \
+    chown -R kiket:kiket /app
+
+USER kiket
+
+# Port configured via deployments.yml, default 9292
+ENV PORT=${PORT}
+EXPOSE ${PORT}
+
+# Health check endpoint
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:${PORT}/health || exit 1
+
+# SDK handles server via Run()
+CMD ["./extension"]

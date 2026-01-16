@@ -171,6 +171,9 @@ func (s *SDK) HandleWebhook(ctx context.Context, body []byte, headers Headers) (
 		return nil, fmt.Errorf("no handler registered for event %s (version %s)", event, version)
 	}
 
+	// Extract payload secrets for the secret helper
+	payloadSecrets := extractPayloadSecrets(payload)
+
 	// Build handler context
 	handlerCtx := &HandlerContext{
 		Event:            event,
@@ -182,6 +185,7 @@ func (s *SDK) HandleWebhook(ctx context.Context, body []byte, headers Headers) (
 		ExtensionID:      s.config.ExtensionID,
 		ExtensionVersion: s.config.ExtensionVersion,
 		Secrets:          s.endpoints.Secrets,
+		payloadSecrets:   payloadSecrets,
 	}
 
 	// Execute handler with telemetry
@@ -261,4 +265,26 @@ func (s *SDK) Config() Config {
 // Close closes the SDK and releases resources.
 func (s *SDK) Close() error {
 	return s.client.Close()
+}
+
+// extractPayloadSecrets extracts the secrets map from a webhook payload.
+// Returns nil if no secrets are present.
+func extractPayloadSecrets(payload WebhookPayload) map[string]string {
+	secretsRaw, ok := payload["secrets"]
+	if !ok {
+		return nil
+	}
+
+	secretsMap, ok := secretsRaw.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	result := make(map[string]string)
+	for k, v := range secretsMap {
+		if strVal, ok := v.(string); ok {
+			result[k] = strVal
+		}
+	}
+	return result
 }

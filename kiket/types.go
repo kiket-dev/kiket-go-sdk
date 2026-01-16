@@ -3,6 +3,7 @@ package kiket
 
 import (
 	"context"
+	"os"
 	"time"
 )
 
@@ -36,8 +37,28 @@ type HandlerContext struct {
 	ExtensionID string
 	// Extension version
 	ExtensionVersion string
-	// Secret manager
+	// Secret manager for API-based secret operations
 	Secrets SecretManager
+	// Payload secrets (per-org configuration bundled by SecretResolver)
+	payloadSecrets map[string]string
+}
+
+// Secret retrieves a secret value by key.
+// Checks payload secrets first (per-org configuration), then falls back to
+// environment variables (extension defaults).
+//
+// Example:
+//
+//	slackToken := ctx.Secret("SLACK_BOT_TOKEN")
+//	// Returns payload.secrets["SLACK_BOT_TOKEN"] || os.Getenv("SLACK_BOT_TOKEN")
+func (ctx *HandlerContext) Secret(key string) string {
+	// Payload secrets (per-org) take priority over ENV (extension defaults)
+	if ctx.payloadSecrets != nil {
+		if val, ok := ctx.payloadSecrets[key]; ok && val != "" {
+			return val
+		}
+	}
+	return os.Getenv(key)
 }
 
 // Config holds SDK configuration options.

@@ -119,7 +119,34 @@ sdk.On("comment.created", handleCommentCreated)
 
 ## Extension Endpoints
 
-### Secrets
+### Secret Helper
+
+The `Secret()` method provides a simple way to retrieve secrets with automatic fallback:
+
+```go
+// Checks payload secrets first (per-org config), falls back to ENV
+slackToken := hctx.Secret("SLACK_BOT_TOKEN")
+
+// Example usage
+sdk.On("issue.created", func(ctx context.Context, payload kiket.WebhookPayload, hctx *kiket.HandlerContext) (interface{}, error) {
+    apiKey := hctx.Secret("API_KEY")
+    if apiKey == "" {
+        return nil, fmt.Errorf("API_KEY not configured")
+    }
+    // Use apiKey...
+    return map[string]string{"status": "ok"}, nil
+})
+```
+
+The lookup order is:
+1. **Payload secrets** (per-org configuration from `payload["secrets"]`)
+2. **Environment variables** (extension defaults)
+
+This allows organizations to override extension defaults with their own credentials.
+
+### Secret Manager (API-based)
+
+For programmatic secret management via the Kiket API:
 
 ```go
 // Get a secret

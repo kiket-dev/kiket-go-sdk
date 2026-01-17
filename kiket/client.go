@@ -18,10 +18,10 @@ const (
 
 // HTTPClient implements the Client interface using net/http.
 type HTTPClient struct {
-	baseURL    string
-	httpClient *http.Client
-	apiKey     string
-	token      string
+	baseURL      string
+	httpClient   *http.Client
+	token        string
+	runtimeToken string
 }
 
 // ClientOption configures the HTTP client.
@@ -34,17 +34,17 @@ func WithBaseURL(url string) ClientOption {
 	}
 }
 
-// WithAPIKey sets the extension API key.
-func WithAPIKey(key string) ClientOption {
-	return func(c *HTTPClient) {
-		c.apiKey = key
-	}
-}
-
 // WithToken sets the bearer token.
 func WithToken(token string) ClientOption {
 	return func(c *HTTPClient) {
 		c.token = token
+	}
+}
+
+// WithRuntimeToken sets the runtime token for per-invocation auth.
+func WithRuntimeToken(token string) ClientOption {
+	return func(c *HTTPClient) {
+		c.runtimeToken = token
 	}
 }
 
@@ -100,10 +100,11 @@ func (c *HTTPClient) doRequest(ctx context.Context, method, path string, body in
 	req.Header.Set("Accept", "application/json")
 
 	// Set authentication
-	if c.apiKey != "" {
-		req.Header.Set("X-Kiket-API-Key", c.apiKey)
-	} else if c.token != "" {
+	if c.token != "" {
 		req.Header.Set("Authorization", "Bearer "+c.token)
+	}
+	if c.runtimeToken != "" {
+		req.Header.Set("X-Kiket-Runtime-Token", c.runtimeToken)
 	}
 
 	// Apply custom headers

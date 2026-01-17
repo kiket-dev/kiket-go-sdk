@@ -13,7 +13,6 @@ import (
 // TelemetryReporter handles telemetry reporting.
 type TelemetryReporter struct {
 	endpoint         string
-	apiKey           string
 	enabled          bool
 	extensionID      string
 	extensionVersion string
@@ -33,13 +32,6 @@ func WithTelemetryEndpoint(url string) TelemetryOption {
 			}
 			r.endpoint = url
 		}
-	}
-}
-
-// WithTelemetryAPIKey sets the API key for telemetry.
-func WithTelemetryAPIKey(key string) TelemetryOption {
-	return func(r *TelemetryReporter) {
-		r.apiKey = key
 	}
 }
 
@@ -129,9 +121,6 @@ func (r *TelemetryReporter) Record(ctx context.Context, event, version, status s
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	if r.apiKey != "" {
-		req.Header.Set("X-Kiket-API-Key", r.apiKey)
-	}
 
 	resp, err := r.httpClient.Do(req)
 	if err != nil {

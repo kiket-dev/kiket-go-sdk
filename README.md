@@ -24,7 +24,6 @@ import (
 func main() {
     // Create SDK instance
     sdk, err := kiket.New(kiket.Config{
-        WebhookSecret:   "your-webhook-secret",
         ExtensionAPIKey: "your-api-key",
         ExtensionID:     "com.example.my-extension",
     })
@@ -63,7 +62,6 @@ The SDK can be configured programmatically or via manifest file:
 ```go
 sdk, err := kiket.New(kiket.Config{
     // Authentication
-    WebhookSecret:   "hmac-secret",      // For webhook signature verification
     ExtensionAPIKey: "ext-api-key",      // For extension API calls
     WorkspaceToken:  "workspace-token",  // Alternative: workspace auth
 
@@ -87,7 +85,6 @@ Create `extension.yaml` in your project root:
 ```yaml
 id: com.example.my-extension
 version: 1.0.0
-delivery_secret: your-webhook-secret
 
 settings:
   - key: api_token
@@ -216,15 +213,29 @@ log.Printf("Remaining: %d/%d (resets in %ds)",
     info.Remaining, info.Limit, info.ResetIn)
 ```
 
-## Signature Verification
+## Authentication
 
-The SDK automatically verifies webhook signatures. For manual verification:
+The SDK automatically verifies JWT runtime tokens from webhook payloads. The token is verified against Kiket's JWKS endpoint.
 
 ```go
-err := kiket.VerifySignature(secret, body, headers)
+// Access authentication context in handlers
+sdk.On("issue.created", func(ctx context.Context, payload kiket.WebhookPayload, hctx *kiket.HandlerContext) (interface{}, error) {
+    // Auth context is available after JWT verification
+    if hctx.Auth != nil {
+        log.Printf("Org ID: %d", *hctx.Auth.OrgID)
+        log.Printf("Scopes: %v", hctx.Auth.Scopes)
+    }
+    return nil, nil
+})
+```
+
+For manual JWT verification:
+
+```go
+jwtPayload, err := kiket.DecodeJWT(ctx, tokenString, baseURL)
 if err != nil {
     if kiket.IsAuthenticationError(err) {
-        // Invalid signature
+        // Invalid or expired token
     }
 }
 ```
@@ -249,16 +260,10 @@ r.Post("/webhook", sdk.ServeHTTP)
 
 ## Testing
 
-Generate test signatures:
+For testing, you can clear the JWKS cache between tests:
 
 ```go
-signature, timestamp := kiket.GenerateSignature(secret, body, nil)
-
-headers := kiket.Headers{
-    "X-Kiket-Signature":  signature,
-    "X-Kiket-Timestamp":  timestamp,
-    "X-Kiket-Event-Version": "v1",
-}
+kiket.ClearJWKSCache()
 ```
 
 ## Environment Variables

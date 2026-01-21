@@ -2,11 +2,11 @@ package kiket
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"sort"
 	"strconv"
 	"time"
@@ -14,11 +14,11 @@ import (
 
 // AuditClient handles blockchain audit verification operations.
 type AuditClient struct {
-	client *Client
+	client Client
 }
 
 // NewAuditClient creates a new audit client.
-func NewAuditClient(client *Client) *AuditClient {
+func NewAuditClient(client Client) *AuditClient {
 	return &AuditClient{client: client}
 }
 
@@ -106,32 +106,32 @@ type PaginationInfo struct {
 }
 
 // ListAnchors lists blockchain anchors for the organization.
-func (c *AuditClient) ListAnchors(opts ListAnchorsOptions) (*ListAnchorsResult, error) {
-	params := url.Values{}
+func (c *AuditClient) ListAnchors(ctx context.Context, opts ListAnchorsOptions) (*ListAnchorsResult, error) {
+	params := make(map[string]string)
 	if opts.Page > 0 {
-		params.Set("page", strconv.Itoa(opts.Page))
+		params["page"] = strconv.Itoa(opts.Page)
 	} else {
-		params.Set("page", "1")
+		params["page"] = "1"
 	}
 	if opts.PerPage > 0 {
-		params.Set("per_page", strconv.Itoa(opts.PerPage))
+		params["per_page"] = strconv.Itoa(opts.PerPage)
 	} else {
-		params.Set("per_page", "25")
+		params["per_page"] = "25"
 	}
 	if opts.Status != "" {
-		params.Set("status", opts.Status)
+		params["status"] = opts.Status
 	}
 	if opts.Network != "" {
-		params.Set("network", opts.Network)
+		params["network"] = opts.Network
 	}
 	if opts.From != nil {
-		params.Set("from", opts.From.Format(time.RFC3339))
+		params["from"] = opts.From.Format(time.RFC3339)
 	}
 	if opts.To != nil {
-		params.Set("to", opts.To.Format(time.RFC3339))
+		params["to"] = opts.To.Format(time.RFC3339)
 	}
 
-	resp, err := c.client.Get("/api/v1/audit/anchors?" + params.Encode())
+	resp, err := c.client.Get(ctx, "/api/v1/audit/anchors", &RequestOptions{Params: params})
 	if err != nil {
 		return nil, err
 	}
@@ -145,13 +145,14 @@ func (c *AuditClient) ListAnchors(opts ListAnchorsOptions) (*ListAnchorsResult, 
 }
 
 // GetAnchor gets details of a specific anchor by merkle root.
-func (c *AuditClient) GetAnchor(merkleRoot string, includeRecords bool) (*BlockchainAnchor, error) {
+func (c *AuditClient) GetAnchor(ctx context.Context, merkleRoot string, includeRecords bool) (*BlockchainAnchor, error) {
 	path := "/api/v1/audit/anchors/" + merkleRoot
+	var opts *RequestOptions
 	if includeRecords {
-		path += "?include_records=true"
+		opts = &RequestOptions{Params: map[string]string{"include_records": "true"}}
 	}
 
-	resp, err := c.client.Get(path)
+	resp, err := c.client.Get(ctx, path, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -165,19 +166,20 @@ func (c *AuditClient) GetAnchor(merkleRoot string, includeRecords bool) (*Blockc
 }
 
 // GetProof gets the blockchain proof for a specific audit record (defaults to AuditLog type).
-func (c *AuditClient) GetProof(recordID int64) (*BlockchainProof, error) {
-	return c.GetProofWithType(recordID, "AuditLog")
+func (c *AuditClient) GetProof(ctx context.Context, recordID int64) (*BlockchainProof, error) {
+	return c.GetProofWithType(ctx, recordID, "AuditLog")
 }
 
 // GetProofWithType gets the blockchain proof for a specific audit record of the given type.
 // recordType should be "AuditLog" or "AIAuditLog".
-func (c *AuditClient) GetProofWithType(recordID int64, recordType string) (*BlockchainProof, error) {
+func (c *AuditClient) GetProofWithType(ctx context.Context, recordID int64, recordType string) (*BlockchainProof, error) {
 	path := fmt.Sprintf("/api/v1/audit/records/%d/proof", recordID)
+	var opts *RequestOptions
 	if recordType != "AuditLog" {
-		path += "?record_type=" + recordType
+		opts = &RequestOptions{Params: map[string]string{"record_type": recordType}}
 	}
 
-	resp, err := c.client.Get(path)
+	resp, err := c.client.Get(ctx, path, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -191,7 +193,7 @@ func (c *AuditClient) GetProofWithType(recordID int64, recordType string) (*Bloc
 }
 
 // Verify verifies a blockchain proof via the API.
-func (c *AuditClient) Verify(proof *BlockchainProof) (*VerificationResult, error) {
+func (c *AuditClient) Verify(ctx context.Context, proof *BlockchainProof) (*VerificationResult, error) {
 	payload := map[string]interface{}{
 		"content_hash": proof.ContentHash,
 		"merkle_root":  proof.MerkleRoot,
@@ -200,12 +202,7 @@ func (c *AuditClient) Verify(proof *BlockchainProof) (*VerificationResult, error
 		"tx_hash":      proof.TxHash,
 	}
 
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal payload: %w", err)
-	}
-
-	resp, err := c.client.Post("/api/v1/audit/verify", body)
+	resp, err := c.client.Post(ctx, "/api/v1/audit/verify", payload, nil)
 	if err != nil {
 		return nil, err
 	}

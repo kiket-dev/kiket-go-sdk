@@ -16,6 +16,7 @@ type TelemetryReporter struct {
 	enabled          bool
 	extensionID      string
 	extensionVersion string
+	apiKey           string
 	httpClient       *http.Client
 }
 
@@ -40,6 +41,13 @@ func WithTelemetryExtension(id, version string) TelemetryOption {
 	return func(r *TelemetryReporter) {
 		r.extensionID = id
 		r.extensionVersion = version
+	}
+}
+
+// WithTelemetryAPIKey sets the API key for telemetry authentication.
+func WithTelemetryAPIKey(apiKey string) TelemetryOption {
+	return func(r *TelemetryReporter) {
+		r.apiKey = apiKey
 	}
 }
 

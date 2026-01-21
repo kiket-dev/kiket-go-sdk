@@ -39,6 +39,8 @@ type HandlerContext struct {
 	ExtensionVersion string
 	// Secret manager for API-based secret operations
 	Secrets SecretManager
+	// Authentication context from verified JWT
+	Auth *AuthContext
 	// Payload secrets (per-org configuration bundled by SecretResolver)
 	payloadSecrets map[string]string
 }
@@ -63,8 +65,6 @@ func (ctx *HandlerContext) Secret(key string) string {
 
 // Config holds SDK configuration options.
 type Config struct {
-	// Webhook HMAC secret for signature verification
-	WebhookSecret string
 	// Workspace token for API authentication
 	WorkspaceToken string
 	// Extension API key for /api/v1/ext endpoints

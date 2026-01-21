@@ -25,7 +25,7 @@ type SDK struct {
 func New(config Config) (*SDK, error) {
 	// Load manifest if not provided
 	var manifest *Manifest
-	if config.ManifestPath != "" || (config.ExtensionID == "" && config.WebhookSecret == "") {
+	if config.ManifestPath != "" || config.ExtensionID == "" {
 		var err error
 		manifest, err = LoadManifest(config.ManifestPath)
 		if err != nil {
@@ -40,9 +40,6 @@ func New(config Config) (*SDK, error) {
 		}
 		if config.ExtensionVersion == "" {
 			config.ExtensionVersion = manifest.Version
-		}
-		if config.WebhookSecret == "" {
-			config.WebhookSecret = manifest.DeliverySecret
 		}
 		if config.Settings == nil {
 			config.Settings = SettingsDefaults(manifest)
@@ -144,16 +141,28 @@ func (s *SDK) EventNames() []string {
 
 // HandleWebhook processes an incoming webhook request.
 func (s *SDK) HandleWebhook(ctx context.Context, body []byte, headers Headers) (interface{}, error) {
-	// Verify signature
-	if err := VerifySignature(s.config.WebhookSecret, body, headers); err != nil {
-		return nil, err
-	}
-
 	// Parse payload
 	var payload WebhookPayload
 	if err := json.Unmarshal(body, &payload); err != nil {
 		return nil, fmt.Errorf("failed to parse webhook payload: %w", err)
 	}
+
+	// Get base URL from payload or config
+	baseURL := s.config.BaseURL
+	if api, ok := payload["api"].(map[string]interface{}); ok {
+		if payloadBaseURL, ok := api["base_url"].(string); ok && payloadBaseURL != "" {
+			baseURL = payloadBaseURL
+		}
+	}
+
+	// Verify JWT runtime token
+	jwtPayload, err := VerifyRuntimeToken(ctx, payload, baseURL)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build auth context
+	authContext := BuildAuthContext(jwtPayload, payload)
 
 	// Extract event info
 	event, _ := payload["event"].(string)
@@ -185,6 +194,7 @@ func (s *SDK) HandleWebhook(ctx context.Context, body []byte, headers Headers) (
 		ExtensionID:      s.config.ExtensionID,
 		ExtensionVersion: s.config.ExtensionVersion,
 		Secrets:          s.endpoints.Secrets,
+		Auth:             authContext,
 		payloadSecrets:   payloadSecrets,
 	}
 

@@ -55,6 +55,13 @@ func WithTimeout(timeout time.Duration) ClientOption {
 	}
 }
 
+// WithAPIKey sets the API key for authentication.
+func WithAPIKey(apiKey string) ClientOption {
+	return func(c *HTTPClient) {
+		c.token = apiKey
+	}
+}
+
 // NewHTTPClient creates a new HTTP client.
 func NewHTTPClient(opts ...ClientOption) *HTTPClient {
 	c := &HTTPClient{

@@ -116,6 +116,42 @@ sdk.On("comment.created", handleCommentCreated)
 
 ## Extension Endpoints
 
+### Response Helpers
+
+Use the response helpers to build properly formatted responses:
+
+```go
+import "github.com/kiket-dev/kiket/sdk/go/kiket"
+
+// Simple allow
+return kiket.Allow().Build(), nil
+
+// Allow with message and data
+return kiket.Allow().
+    Message("Successfully configured").
+    Data("routeId", 123).
+    Build(), nil
+
+// Allow with output fields (displayed in configuration UI)
+return kiket.Allow().
+    Message("Mailjet configured successfully").
+    Data("routeId", route.ID).
+    OutputField("inbound_email", route.Email).
+    Build(), nil
+
+// Deny with error details
+return kiket.Deny("Invalid credentials").
+    Data("errorCode", "AUTH_FAILED").
+    Build(), nil
+
+// Pending for async operations
+return kiket.Pending("Awaiting approval").
+    Data("jobId", "abc123").
+    Build(), nil
+```
+
+Output fields are displayed in the extension configuration UI after setup, allowing extensions to expose generated data like email addresses, webhook URLs, or status information.
+
 ### Secret Helper
 
 The `Secret()` method provides a simple way to retrieve secrets with automatic fallback:
